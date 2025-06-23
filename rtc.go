@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	stdSync "sync"
+	"time"
 
 	"srs-proxy/errors"
 	"srs-proxy/logger"
@@ -258,12 +259,13 @@ func (v *srsWebRTCServer) Run(ctx context.Context) error {
 			n, caddr, err := listener.ReadFromUDP(buf)
 			if err != nil {
 				// TODO: If WebRTC server closed unexpectedly, we should notice the main loop to quit.
-				logger.Wf(ctx, "read from udp failed, err=%+v", err)
+				logger.Wf(ctx, "WebRTC read from udp failed, err=%+v", err)
+				time.Sleep(1 * time.Second)
 				continue
 			}
 
 			if err := v.handleClientUDP(ctx, caddr, buf[:n]); err != nil {
-				logger.Wf(ctx, "handle udp %vB failed, addr=%v, err=%+v", n, caddr, err)
+				logger.Wf(ctx, "WebRTC handle udp %vB failed, addr=%v, err=%+v", n, caddr, err)
 			}
 		}
 	}()

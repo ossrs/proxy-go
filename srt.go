@@ -83,12 +83,13 @@ func (v *srsSRTServer) Run(ctx context.Context) error {
 			n, caddr, err := v.listener.ReadFromUDP(buf)
 			if err != nil {
 				// TODO: If SRT server closed unexpectedly, we should notice the main loop to quit.
-				logger.Wf(ctx, "read from udp failed, err=%+v", err)
+				logger.Wf(ctx, "SRT read from udp failed, err=%+v", err)
+				time.Sleep(1 * time.Second)
 				continue
 			}
 
 			if err := v.handleClientUDP(ctx, caddr, buf[:n]); err != nil {
-				logger.Wf(ctx, "handle udp %vB failed, addr=%v, err=%+v", n, caddr, err)
+				logger.Wf(ctx, "SRT handle udp %vB failed, addr=%v, err=%+v", n, caddr, err)
 			}
 		}
 	}()
