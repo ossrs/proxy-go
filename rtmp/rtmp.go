@@ -7,11 +7,11 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding"
 	"encoding/binary"
 	"fmt"
 	"io"
-	"math/rand"
 	"sync"
 
 	"srs-proxy/errors"
@@ -19,14 +19,12 @@ import (
 
 // The handshake implements the RTMP handshake protocol.
 type Handshake struct {
-	// The random number generator.
-	r *rand.Rand
 	// The c1s1 cache.
 	c1s1 []byte
 }
 
-func NewHandshake(r *rand.Rand) *Handshake {
-	return &Handshake{r: r}
+func NewHandshake() *Handshake {
+	return &Handshake{}
 }
 
 func (v *Handshake) C1S1() []byte {
@@ -56,8 +54,9 @@ func (v *Handshake) ReadC0S0(r io.Reader) (c0 []byte, err error) {
 func (v *Handshake) WriteC1S1(w io.Writer) (err error) {
 	p := make([]byte, 1536)
 
-	for i := 8; i < len(p); i++ {
-		p[i] = byte(v.r.Int())
+	// Use crypto/rand for thread-safe random generation
+	if _, err = rand.Read(p[8:]); err != nil {
+		return errors.Wrap(err, "generate random bytes")
 	}
 
 	r := bytes.NewReader(p)

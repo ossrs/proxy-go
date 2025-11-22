@@ -242,7 +242,8 @@ func (v *srsMemoryLoadBalancer) Pick(ctx context.Context, streamURL string) (*SR
 		return nil, fmt.Errorf("no server available for %v", streamURL)
 	}
 
-	// Pick a server randomly from servers.
+	// Pick a server randomly from servers. Use global rand which is thread-safe since Go 1.20.
+	// For older Go versions, this is still safe as we're only reading from the servers slice.
 	server := servers[rand.Intn(len(servers))]
 	v.picked.Store(streamURL, server)
 	return server, nil
@@ -420,7 +421,7 @@ func (v *srsRedisLoadBalancer) Pick(ctx context.Context, streamURL string) (*SRS
 	}
 
 	// All server should be alive, if not, should have been removed by redis. So we only
-	// random pick one that is always available.
+	// random pick one that is always available. Use global rand which is thread-safe since Go 1.20.
 	var serverKey string
 	var server SRSServer
 	for i := 0; i < 3; i++ {

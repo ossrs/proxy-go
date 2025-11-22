@@ -81,7 +81,7 @@ func buildDefaultEnvironmentVariables(ctx context.Context) {
 	// The API server of proxy itself.
 	setEnvDefault("PROXY_SYSTEM_API", "12025")
 	// The static directory for web server, optional.
-	setEnvDefault("PROXY_STATIC_FILES", "")
+	setEnvDefault("PROXY_STATIC_FILES", "../srs/trunk/research")
 
 	// The load balancer, use redis or memory.
 	setEnvDefault("PROXY_LOAD_BALANCER_TYPE", "memory")

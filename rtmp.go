@@ -6,12 +6,10 @@ package main
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"net"
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"srs-proxy/errors"
 	"srs-proxy/logger"
@@ -24,16 +22,12 @@ import (
 type srsRTMPServer struct {
 	// The TCP listener for RTMP server.
 	listener *net.TCPListener
-	// The random number generator.
-	rd *rand.Rand
 	// The wait group for all goroutines.
 	wg sync.WaitGroup
 }
 
 func NewSRSRTMPServer(opts ...func(*srsRTMPServer)) *srsRTMPServer {
-	v := &srsRTMPServer{
-		rd: rand.New(rand.NewSource(time.Now().UnixNano())),
-	}
+	v := &srsRTMPServer{}
 	for _, opt := range opts {
 		opt(v)
 	}
@@ -97,9 +91,7 @@ func (v *srsRTMPServer) Run(ctx context.Context) error {
 					}
 				}
 
-				rc := NewRTMPConnection(func(client *RTMPConnection) {
-					client.rd = v.rd
-				})
+				rc := NewRTMPConnection()
 				if err := rc.serve(ctx, conn); err != nil {
 					handleErr(err)
 				} else {
@@ -119,8 +111,6 @@ func (v *srsRTMPServer) Run(ctx context.Context) error {
 // then proxy to the corresponding backend server. All state is in the RTMP request, so this
 // connection is stateless.
 type RTMPConnection struct {
-	// The random number generator.
-	rd *rand.Rand
 }
 
 func NewRTMPConnection(opts ...func(*RTMPConnection)) *RTMPConnection {
@@ -151,7 +141,7 @@ func (v *RTMPConnection) serve(ctx context.Context, conn *net.TCPConn) error {
 	}
 
 	// Simple handshake with client.
-	hs := rtmp.NewHandshake(v.rd)
+	hs := rtmp.NewHandshake()
 	if _, err := hs.ReadC0S0(conn); err != nil {
 		return errors.Wrapf(err, "read c0")
 	}
@@ -294,7 +284,7 @@ func (v *RTMPConnection) serve(ctx context.Context, conn *net.TCPConn) error {
 
 	// Find a backend SRS server to proxy the RTMP stream.
 	backend = NewRTMPClientToBackend(func(client *RTMPClientToBackend) {
-		client.rd, client.typ = v.rd, clientType
+		client.typ = clientType
 	})
 	defer backend.Close()
 
@@ -412,8 +402,6 @@ const (
 
 // RTMPClientToBackend is a RTMP client to proxy the RTMP stream to backend.
 type RTMPClientToBackend struct {
-	// The random number generator.
-	rd *rand.Rand
 	// The underlayer tcp client.
 	tcpConn *net.TCPConn
 	// The RTMP protocol client.
@@ -470,7 +458,7 @@ func (v *RTMPClientToBackend) Connect(ctx context.Context, tcUrl, streamName str
 	}
 	v.tcpConn = c
 
-	hs := rtmp.NewHandshake(v.rd)
+	hs := rtmp.NewHandshake()
 	client := rtmp.NewProtocol(c)
 	v.client = client
 
