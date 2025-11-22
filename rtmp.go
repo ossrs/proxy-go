@@ -74,11 +74,12 @@ func (v *srsRTMPServer) Run(ctx context.Context) error {
 		for {
 			conn, err := v.listener.AcceptTCP()
 			if err != nil {
-				if ctx.Err() != context.Canceled {
+				// If context is canceled or connection is closed, exit gracefully without logging error.
+				if ctx.Err() != nil || isClosedNetworkError(err) {
+					logger.Df(ctx, "RTMP server done")
+				} else {
 					// TODO: If RTMP server closed unexpectedly, we should notice the main loop to quit.
 					logger.Wf(ctx, "RTMP server accept err %+v", err)
-				} else {
-					logger.Df(ctx, "RTMP server done")
 				}
 				return
 			}

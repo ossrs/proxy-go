@@ -258,6 +258,11 @@ func (v *srsWebRTCServer) Run(ctx context.Context) error {
 			buf := make([]byte, 4096)
 			n, caddr, err := listener.ReadFromUDP(buf)
 			if err != nil {
+				// If context is canceled or connection is closed, exit gracefully without logging error.
+				if ctx.Err() != nil || isClosedNetworkError(err) {
+					logger.Df(ctx, "WebRTC server done")
+					return
+				}
 				// TODO: If WebRTC server closed unexpectedly, we should notice the main loop to quit.
 				logger.Wf(ctx, "WebRTC read from udp failed, err=%+v", err)
 				time.Sleep(1 * time.Second)

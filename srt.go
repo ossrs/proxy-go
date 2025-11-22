@@ -82,6 +82,11 @@ func (v *srsSRTServer) Run(ctx context.Context) error {
 			buf := make([]byte, 4096)
 			n, caddr, err := v.listener.ReadFromUDP(buf)
 			if err != nil {
+				// If context is canceled or connection is closed, exit gracefully without logging error.
+				if ctx.Err() != nil || isClosedNetworkError(err) {
+					logger.Df(ctx, "SRT server done")
+					return
+				}
 				// TODO: If SRT server closed unexpectedly, we should notice the main loop to quit.
 				logger.Wf(ctx, "SRT read from udp failed, err=%+v", err)
 				time.Sleep(1 * time.Second)

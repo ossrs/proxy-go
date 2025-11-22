@@ -162,11 +162,13 @@ func (v *srsHTTPStreamServer) Run(ctx context.Context) error {
 
 		err := v.server.ListenAndServe()
 		if err != nil {
-			if ctx.Err() != context.Canceled {
+			if err == http.ErrServerClosed {
+				logger.Df(ctx, "HTTP Stream server done")
+			} else if ctx.Err() != nil {
+				logger.Df(ctx, "HTTP Stream server done with context canceled")
+			} else {
 				// TODO: If HTTP Stream server closed unexpectedly, we should notice the main loop to quit.
 				logger.Wf(ctx, "HTTP Stream accept err %+v", err)
-			} else {
-				logger.Df(ctx, "HTTP Stream server done")
 			}
 		}
 	}()

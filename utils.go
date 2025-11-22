@@ -45,7 +45,7 @@ func apiError(ctx context.Context, w http.ResponseWriter, r *http.Request, err e
 	logger.Wf(ctx, "HTTP API error %+v", err)
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusInternalServerError)
-	fmt.Fprintln(w, fmt.Sprintf("%v", err))
+	fmt.Fprintf(w, "%v\n", err)
 }
 
 func apiCORS(ctx context.Context, w http.ResponseWriter, r *http.Request) bool {
@@ -137,6 +137,20 @@ func isPeerClosedError(err error) bool {
 				return true
 			}
 		}
+	}
+
+	return false
+}
+
+// isClosedNetworkError indicates whether the error is due to a closed network connection.
+func isClosedNetworkError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Check for "use of closed network connection" error
+	if netErr, ok := err.(*net.OpError); ok {
+		return netErr.Err.Error() == "use of closed network connection"
 	}
 
 	return false
@@ -263,7 +277,44 @@ func parseListenEndpoint(ep string) (protocol string, ip net.IP, port uint16, er
 		}
 	}
 
-	// Must be protocol://ip:port schema.
+	// Handle URL-style format: protocol://host:port or protocol://port
+	if strings.Contains(ep, "://") {
+		parts := strings.SplitN(ep, "://", 2)
+		if len(parts) != 2 {
+			return "", nil, 0, errors.Errorf("invalid endpoint %v", ep)
+		}
+
+		protocol = parts[0]
+		hostPort := parts[1]
+
+		// Check if there's a port specified
+		if strings.Contains(hostPort, ":") {
+			// Format: protocol://host:port
+			host, portStr, err := net.SplitHostPort(hostPort)
+			if err != nil {
+				return "", nil, 0, errors.Wrapf(err, "parse host:port %v", hostPort)
+			}
+
+			p, err := strconv.Atoi(portStr)
+			if err != nil {
+				return "", nil, 0, errors.Wrapf(err, "parse port %v", portStr)
+			}
+
+			if host != "" {
+				ip = net.ParseIP(host)
+			}
+			return protocol, ip, uint16(p), nil
+		} else {
+			// Format: protocol://port
+			p, err := strconv.Atoi(hostPort)
+			if err != nil {
+				return "", nil, 0, errors.Wrapf(err, "parse port %v", hostPort)
+			}
+			return protocol, nil, uint16(p), nil
+		}
+	}
+
+	// Legacy format: protocol:ip:port
 	parts := strings.Split(ep, ":")
 	if len(parts) != 3 {
 		return "", nil, 0, errors.Errorf("invalid endpoint %v", ep)
