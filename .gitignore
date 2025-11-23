@@ -2,3 +2,5 @@
 srs-proxy
 .env
 .go-formarted
+.claude
+.vscode

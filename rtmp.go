@@ -84,8 +84,8 @@ func (v *srsRTMPServer) Run(ctx context.Context) error {
 				defer conn.Close()
 
 				handleErr := func(err error) {
-					if isPeerClosedError(err) {
-						logger.Df(ctx, "RTMP peer is closed")
+					if isPeerClosedError(err) || isClosedNetworkError(err) {
+						logger.Df(ctx, "RTMP connection closed")
 					} else {
 						logger.Wf(ctx, "RTMP serve err %+v", err)
 					}
@@ -384,9 +384,19 @@ func (v *RTMPConnection) serve(ctx context.Context, conn *net.TCPConn) error {
 
 	// Reset the error if caused by another goroutine.
 	if r0 != nil {
+		// If backend connection closed normally, treat as normal disconnection
+		if isClosedNetworkError(r0) || isPeerClosedError(r0) {
+			logger.Df(ctx, "RTMP backend disconnected")
+			return nil
+		}
 		return errors.Wrapf(r0, "proxy backend->client")
 	}
 	if r1 != nil {
+		// If client connection closed normally, treat as normal disconnection
+		if isClosedNetworkError(r1) || isPeerClosedError(r1) {
+			logger.Df(ctx, "RTMP client disconnected")
+			return nil
+		}
 		return errors.Wrapf(r1, "proxy client->backend")
 	}
 

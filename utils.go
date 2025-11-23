@@ -148,12 +148,16 @@ func isClosedNetworkError(err error) bool {
 		return false
 	}
 
+	// Unwrap to get the underlying error
+	causeErr := errors.Cause(err)
+
 	// Check for "use of closed network connection" error
-	if netErr, ok := err.(*net.OpError); ok {
+	if netErr, ok := causeErr.(*net.OpError); ok {
 		return netErr.Err.Error() == "use of closed network connection"
 	}
 
-	return false
+	// Also check if the error message contains the text
+	return strings.Contains(causeErr.Error(), "use of closed network connection")
 }
 
 // convertURLToStreamURL convert the URL in HTTP request to special URLs. The unifiedURL is the URL
