@@ -13,7 +13,7 @@ Key characteristics:
 
 ## Design Overview
 
-See the "Design" section in @README.md for the complete architecture overview, including:
+See @doc/design.md for the complete architecture overview, including:
 - Stateless proxy architecture with built-in load balancing
 - Single Proxy Mode (memory-based)
 - Multi-Proxy Mode (Redis sync, AWS NLB)
