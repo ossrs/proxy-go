@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Winlin
 //
 // SPDX-License-Identifier: MIT
-package main
+package signal
 
 import (
 	"context"
@@ -10,11 +10,12 @@ import (
 	"syscall"
 	"time"
 
-	"srs-proxy/errors"
-	"srs-proxy/logger"
+	"srs-proxy/internal/env"
+	"srs-proxy/internal/errors"
+	"srs-proxy/internal/logger"
 )
 
-func installSignals(ctx context.Context, cancel context.CancelFunc) {
+func InstallSignals(ctx context.Context, cancel context.CancelFunc) {
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
 
@@ -26,10 +27,10 @@ func installSignals(ctx context.Context, cancel context.CancelFunc) {
 	}()
 }
 
-func installForceQuit(ctx context.Context) error {
+func InstallForceQuit(ctx context.Context) error {
 	var forceTimeout time.Duration
-	if t, err := time.ParseDuration(envForceQuitTimeout()); err != nil {
-		return errors.Wrapf(err, "parse force timeout %v", envForceQuitTimeout())
+	if t, err := time.ParseDuration(env.EnvForceQuitTimeout()); err != nil {
+		return errors.Wrapf(err, "parse force timeout %v", env.EnvForceQuitTimeout())
 	} else {
 		forceTimeout = t
 	}

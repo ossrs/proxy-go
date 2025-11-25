@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Winlin
 //
 // SPDX-License-Identifier: MIT
-package main
+package protocol
 
 import (
 	"context"
@@ -11,9 +11,13 @@ import (
 	"strings"
 	"sync"
 
-	"srs-proxy/errors"
-	"srs-proxy/logger"
-	"srs-proxy/rtmp"
+	"srs-proxy/internal/env"
+	"srs-proxy/internal/errors"
+	"srs-proxy/internal/lb"
+	"srs-proxy/internal/logger"
+	"srs-proxy/internal/rtmp"
+	"srs-proxy/internal/utils"
+	"srs-proxy/internal/version"
 )
 
 // srsRTMPServer is the proxy for SRS RTMP server, to proxy the RTMP stream to backend SRS
@@ -44,7 +48,7 @@ func (v *srsRTMPServer) Close() error {
 }
 
 func (v *srsRTMPServer) Run(ctx context.Context) error {
-	endpoint := envRtmpServer()
+	endpoint := env.EnvRtmpServer()
 	if !strings.Contains(endpoint, ":") {
 		endpoint = ":" + endpoint
 	}
@@ -69,7 +73,7 @@ func (v *srsRTMPServer) Run(ctx context.Context) error {
 			conn, err := v.listener.AcceptTCP()
 			if err != nil {
 				// If context is canceled or connection is closed, exit gracefully without logging error.
-				if ctx.Err() != nil || isClosedNetworkError(err) {
+				if ctx.Err() != nil || utils.IsClosedNetworkError(err) {
 					logger.Df(ctx, "RTMP server done")
 				} else {
 					// TODO: If RTMP server closed unexpectedly, we should notice the main loop to quit.
@@ -84,7 +88,7 @@ func (v *srsRTMPServer) Run(ctx context.Context) error {
 				defer conn.Close()
 
 				handleErr := func(err error) {
-					if isPeerClosedError(err) || isClosedNetworkError(err) {
+					if utils.IsPeerClosedError(err) || utils.IsClosedNetworkError(err) {
 						logger.Df(ctx, "RTMP connection closed")
 					} else {
 						logger.Wf(ctx, "RTMP serve err %+v", err)
@@ -195,7 +199,7 @@ func (v *RTMPConnection) serve(ctx context.Context, conn *net.TCPConn) error {
 	connectRes.Args.Set("objectEncoding", rtmp.NewAmf0Number(0))
 	connectResData := rtmp.NewAmf0EcmaArray()
 	connectResData.Set("version", rtmp.NewAmf0String("3,5,3,888"))
-	connectResData.Set("srs_version", rtmp.NewAmf0String(Version()))
+	connectResData.Set("srs_version", rtmp.NewAmf0String(version.Version()))
 	connectResData.Set("srs_id", rtmp.NewAmf0String(logger.ContextID(ctx)))
 	connectRes.Args.Set("data", connectResData)
 	if err := client.WritePacket(ctx, connectRes, 0); err != nil {
@@ -385,7 +389,7 @@ func (v *RTMPConnection) serve(ctx context.Context, conn *net.TCPConn) error {
 	// Reset the error if caused by another goroutine.
 	if r0 != nil {
 		// If backend connection closed normally, treat as normal disconnection
-		if isClosedNetworkError(r0) || isPeerClosedError(r0) {
+		if utils.IsClosedNetworkError(r0) || utils.IsPeerClosedError(r0) {
 			logger.Df(ctx, "RTMP backend disconnected")
 			return nil
 		}
@@ -393,7 +397,7 @@ func (v *RTMPConnection) serve(ctx context.Context, conn *net.TCPConn) error {
 	}
 	if r1 != nil {
 		// If client connection closed normally, treat as normal disconnection
-		if isClosedNetworkError(r1) || isPeerClosedError(r1) {
+		if utils.IsClosedNetworkError(r1) || utils.IsPeerClosedError(r1) {
 			logger.Df(ctx, "RTMP client disconnected")
 			return nil
 		}
@@ -437,13 +441,13 @@ func (v *RTMPClientToBackend) Close() error {
 
 func (v *RTMPClientToBackend) Connect(ctx context.Context, tcUrl, streamName string) error {
 	// Build the stream URL in vhost/app/stream schema.
-	streamURL, err := buildStreamURL(fmt.Sprintf("%v/%v", tcUrl, streamName))
+	streamURL, err := utils.BuildStreamURL(fmt.Sprintf("%v/%v", tcUrl, streamName))
 	if err != nil {
 		return errors.Wrapf(err, "build stream url %v/%v", tcUrl, streamName)
 	}
 
 	// Pick a backend SRS server to proxy the RTMP stream.
-	backend, err := srsLoadBalancer.Pick(ctx, streamURL)
+	backend, err := lb.SrsLoadBalancer.Pick(ctx, streamURL)
 	if err != nil {
 		return errors.Wrapf(err, "pick backend for %v", streamURL)
 	}

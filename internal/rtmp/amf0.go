@@ -11,7 +11,7 @@ import (
 	"math"
 	"sync"
 
-	"srs-proxy/errors"
+	"srs-proxy/internal/errors"
 )
 
 // Please read @doc amf0_spec_121207.pdf, @page 4, @section 2.1 Types Overview

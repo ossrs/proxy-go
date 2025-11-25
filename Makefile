@@ -4,15 +4,15 @@ all: build
 
 build: fmt ./srs-proxy
 
-./srs-proxy: *.go
-	go build -o srs-proxy .
+./srs-proxy: cmd/proxy-go/*.go internal/**/*.go
+	go build -o srs-proxy ./cmd/proxy-go
 
 test:
 	go test ./...
 
 fmt: ./.go-formarted
 
-./.go-formarted: *.go
+./.go-formarted: cmd/proxy-go/*.go internal/**/*.go
 	touch .go-formarted
 	go fmt ./...
 
@@ -20,4 +20,4 @@ clean:
 	rm -f srs-proxy .go-formarted
 
 run: fmt
-	go run .
+	go run ./cmd/proxy-go

@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Winlin
 //
 // SPDX-License-Identifier: MIT
-package main
+package protocol
 
 import (
 	"context"
@@ -15,8 +15,12 @@ import (
 	stdSync "sync"
 	"time"
 
-	"srs-proxy/errors"
-	"srs-proxy/logger"
+	"srs-proxy/internal/env"
+	"srs-proxy/internal/errors"
+	"srs-proxy/internal/lb"
+	"srs-proxy/internal/logger"
+	"srs-proxy/internal/utils"
+	"srs-proxy/internal/version"
 )
 
 // srsHTTPStreamServer is the proxy server for SRS HTTP stream server, for HTTP-FLV, HTTP-TS,
@@ -31,10 +35,9 @@ type srsHTTPStreamServer struct {
 	wg stdSync.WaitGroup
 }
 
-func NewSRSHTTPStreamServer(opts ...func(*srsHTTPStreamServer)) *srsHTTPStreamServer {
-	v := &srsHTTPStreamServer{}
-	for _, opt := range opts {
-		opt(v)
+func NewSRSHTTPStreamServer(gracefulQuitTimeout time.Duration) *srsHTTPStreamServer {
+	v := &srsHTTPStreamServer{
+		gracefulQuitTimeout: gracefulQuitTimeout,
 	}
 	return v
 }
@@ -50,7 +53,7 @@ func (v *srsHTTPStreamServer) Close() error {
 
 func (v *srsHTTPStreamServer) Run(ctx context.Context) error {
 	// Parse address to listen.
-	addr := envHttpServer()
+	addr := env.EnvHttpServer()
 	if !strings.Contains(addr, ":") {
 		addr = ":" + addr
 	}
@@ -86,17 +89,17 @@ func (v *srsHTTPStreamServer) Run(ctx context.Context) error {
 		}
 
 		res := Response{Code: 0, PID: fmt.Sprintf("%v", os.Getpid())}
-		res.Data.Major = VersionMajor()
-		res.Data.Minor = VersionMinor()
-		res.Data.Revision = VersionRevision()
-		res.Data.Version = Version()
+		res.Data.Major = version.VersionMajor()
+		res.Data.Minor = version.VersionMinor()
+		res.Data.Revision = version.VersionRevision()
+		res.Data.Version = version.Version()
 
-		apiResponse(ctx, w, r, &res)
+		utils.ApiResponse(ctx, w, r, &res)
 	})
 
 	// The static web server, for the web pages.
 	var staticServer http.Handler
-	if staticFiles := envStaticFiles(); staticFiles != "" {
+	if staticFiles := env.EnvStaticFiles(); staticFiles != "" {
 		if _, err := os.Stat(staticFiles); err != nil {
 			return errors.Wrapf(err, "invalid static files %v", staticFiles)
 		}
@@ -110,19 +113,19 @@ func (v *srsHTTPStreamServer) Run(ctx context.Context) error {
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// For HLS streaming, we will proxy the request to the streaming server.
 		if strings.HasSuffix(r.URL.Path, ".m3u8") {
-			unifiedURL, fullURL := convertURLToStreamURL(r)
-			streamURL, err := buildStreamURL(unifiedURL)
+			unifiedURL, fullURL := utils.ConvertURLToStreamURL(r)
+			streamURL, err := utils.BuildStreamURL(unifiedURL)
 			if err != nil {
 				http.Error(w, fmt.Sprintf("build stream url by %v from %v", unifiedURL, fullURL), http.StatusBadRequest)
 				return
 			}
 
-			stream, _ := srsLoadBalancer.LoadOrStoreHLS(ctx, streamURL, NewHLSPlayStream(func(s *HLSPlayStream) {
+			stream, _ := lb.SrsLoadBalancer.LoadOrStoreHLS(ctx, streamURL, NewHLSPlayStream(func(s *HLSPlayStream) {
 				s.SRSProxyBackendHLSID = logger.GenerateContextID()
 				s.StreamURL, s.FullURL = streamURL, fullURL
 			}))
 
-			stream.Initialize(ctx).ServeHTTP(w, r)
+			stream.Initialize(ctx).(*HLSPlayStream).ServeHTTP(w, r)
 			return
 		}
 
@@ -131,10 +134,10 @@ func (v *srsHTTPStreamServer) Run(ctx context.Context) error {
 			strings.HasSuffix(r.URL.Path, ".ts") {
 			// If SPBHID is specified, it must be a HLS stream client.
 			if srsProxyBackendID := r.URL.Query().Get("spbhid"); srsProxyBackendID != "" {
-				if stream, err := srsLoadBalancer.LoadHLSBySPBHID(ctx, srsProxyBackendID); err != nil {
+				if stream, err := lb.SrsLoadBalancer.LoadHLSBySPBHID(ctx, srsProxyBackendID); err != nil {
 					http.Error(w, fmt.Sprintf("load stream by spbhid %v", srsProxyBackendID), http.StatusBadRequest)
 				} else {
-					stream.Initialize(ctx).ServeHTTP(w, r)
+					stream.Initialize(ctx).(*HLSPlayStream).ServeHTTP(w, r)
 				}
 				return
 			}
@@ -200,7 +203,7 @@ func (v *HTTPFlvTsConnection) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	ctx := logger.WithContext(v.ctx)
 
 	if err := v.serve(ctx, w, r); err != nil {
-		apiError(ctx, w, r, err)
+		utils.ApiError(ctx, w, r, err)
 	} else {
 		logger.Df(ctx, "HTTP client done")
 	}
@@ -208,21 +211,21 @@ func (v *HTTPFlvTsConnection) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 
 func (v *HTTPFlvTsConnection) serve(ctx context.Context, w http.ResponseWriter, r *http.Request) error {
 	// Always allow CORS for all requests.
-	if ok := apiCORS(ctx, w, r); ok {
+	if ok := utils.ApiCORS(ctx, w, r); ok {
 		return nil
 	}
 
 	// Build the stream URL in vhost/app/stream schema.
-	unifiedURL, fullURL := convertURLToStreamURL(r)
+	unifiedURL, fullURL := utils.ConvertURLToStreamURL(r)
 	logger.Df(ctx, "Got HTTP client from %v for %v", r.RemoteAddr, fullURL)
 
-	streamURL, err := buildStreamURL(unifiedURL)
+	streamURL, err := utils.BuildStreamURL(unifiedURL)
 	if err != nil {
 		return errors.Wrapf(err, "build stream url %v", unifiedURL)
 	}
 
 	// Pick a backend SRS server to proxy the RTMP stream.
-	backend, err := srsLoadBalancer.Pick(ctx, streamURL)
+	backend, err := lb.SrsLoadBalancer.Pick(ctx, streamURL)
 	if err != nil {
 		return errors.Wrapf(err, "pick backend for %v", streamURL)
 	}
@@ -234,7 +237,7 @@ func (v *HTTPFlvTsConnection) serve(ctx context.Context, w http.ResponseWriter, 
 	return nil
 }
 
-func (v *HTTPFlvTsConnection) serveByBackend(ctx context.Context, w http.ResponseWriter, r *http.Request, backend *SRSServer) error {
+func (v *HTTPFlvTsConnection) serveByBackend(ctx context.Context, w http.ResponseWriter, r *http.Request, backend *lb.SRSServer) error {
 	// Parse HTTP port from backend.
 	if len(backend.HTTP) == 0 {
 		return errors.Errorf("no http stream server")
@@ -309,18 +312,22 @@ func NewHLSPlayStream(opts ...func(*HLSPlayStream)) *HLSPlayStream {
 	return v
 }
 
-func (v *HLSPlayStream) Initialize(ctx context.Context) *HLSPlayStream {
+func (v *HLSPlayStream) Initialize(ctx context.Context) lb.HLSPlayStream {
 	if v.ctx == nil {
 		v.ctx = logger.WithContext(ctx)
 	}
 	return v
 }
 
+func (v *HLSPlayStream) GetSPBHID() string {
+	return v.SRSProxyBackendHLSID
+}
+
 func (v *HLSPlayStream) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	if err := v.serve(v.ctx, w, r); err != nil {
-		apiError(v.ctx, w, r, err)
+		utils.ApiError(v.ctx, w, r, err)
 	} else {
 		logger.Df(v.ctx, "HLS client %v for %v with %v done",
 			v.SRSProxyBackendHLSID, v.StreamURL, r.URL.Path)
@@ -331,12 +338,12 @@ func (v *HLSPlayStream) serve(ctx context.Context, w http.ResponseWriter, r *htt
 	ctx, streamURL, fullURL := v.ctx, v.StreamURL, v.FullURL
 
 	// Always allow CORS for all requests.
-	if ok := apiCORS(ctx, w, r); ok {
+	if ok := utils.ApiCORS(ctx, w, r); ok {
 		return nil
 	}
 
 	// Pick a backend SRS server to proxy the RTMP stream.
-	backend, err := srsLoadBalancer.Pick(ctx, streamURL)
+	backend, err := lb.SrsLoadBalancer.Pick(ctx, streamURL)
 	if err != nil {
 		return errors.Wrapf(err, "pick backend for %v", streamURL)
 	}
@@ -348,7 +355,7 @@ func (v *HLSPlayStream) serve(ctx context.Context, w http.ResponseWriter, r *htt
 	return nil
 }
 
-func (v *HLSPlayStream) serveByBackend(ctx context.Context, w http.ResponseWriter, r *http.Request, backend *SRSServer) error {
+func (v *HLSPlayStream) serveByBackend(ctx context.Context, w http.ResponseWriter, r *http.Request, backend *lb.SRSServer) error {
 	// Parse HTTP port from backend.
 	if len(backend.HTTP) == 0 {
 		return errors.Errorf("no rtmp server")

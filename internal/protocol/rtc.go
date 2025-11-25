@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Winlin
 //
 // SPDX-License-Identifier: MIT
-package main
+package protocol
 
 import (
 	"context"
@@ -15,9 +15,12 @@ import (
 	stdSync "sync"
 	"time"
 
-	"srs-proxy/errors"
-	"srs-proxy/logger"
-	"srs-proxy/sync"
+	"srs-proxy/internal/env"
+	"srs-proxy/internal/errors"
+	"srs-proxy/internal/lb"
+	"srs-proxy/internal/logger"
+	"srs-proxy/internal/sync"
+	"srs-proxy/internal/utils"
 )
 
 // srsWebRTCServer is the proxy for SRS WebRTC server via WHIP or WHEP protocol. It will figure out
@@ -61,7 +64,7 @@ func (v *srsWebRTCServer) HandleApiForWHIP(ctx context.Context, w http.ResponseW
 	ctx = logger.WithContext(ctx)
 
 	// Always allow CORS for all requests.
-	if ok := apiCORS(ctx, w, r); ok {
+	if ok := utils.ApiCORS(ctx, w, r); ok {
 		return nil
 	}
 
@@ -72,16 +75,16 @@ func (v *srsWebRTCServer) HandleApiForWHIP(ctx context.Context, w http.ResponseW
 	}
 
 	// Build the stream URL in vhost/app/stream schema.
-	unifiedURL, fullURL := convertURLToStreamURL(r)
+	unifiedURL, fullURL := utils.ConvertURLToStreamURL(r)
 	logger.Df(ctx, "Got WebRTC WHIP from %v with %vB offer for %v", r.RemoteAddr, len(remoteSDPOffer), fullURL)
 
-	streamURL, err := buildStreamURL(unifiedURL)
+	streamURL, err := utils.BuildStreamURL(unifiedURL)
 	if err != nil {
 		return errors.Wrapf(err, "build stream url %v", unifiedURL)
 	}
 
 	// Pick a backend SRS server to proxy the RTMP stream.
-	backend, err := srsLoadBalancer.Pick(ctx, streamURL)
+	backend, err := lb.SrsLoadBalancer.Pick(ctx, streamURL)
 	if err != nil {
 		return errors.Wrapf(err, "pick backend for %v", streamURL)
 	}
@@ -98,7 +101,7 @@ func (v *srsWebRTCServer) HandleApiForWHEP(ctx context.Context, w http.ResponseW
 	ctx = logger.WithContext(ctx)
 
 	// Always allow CORS for all requests.
-	if ok := apiCORS(ctx, w, r); ok {
+	if ok := utils.ApiCORS(ctx, w, r); ok {
 		return nil
 	}
 
@@ -109,16 +112,16 @@ func (v *srsWebRTCServer) HandleApiForWHEP(ctx context.Context, w http.ResponseW
 	}
 
 	// Build the stream URL in vhost/app/stream schema.
-	unifiedURL, fullURL := convertURLToStreamURL(r)
+	unifiedURL, fullURL := utils.ConvertURLToStreamURL(r)
 	logger.Df(ctx, "Got WebRTC WHEP from %v with %vB offer for %v", r.RemoteAddr, len(remoteSDPOffer), fullURL)
 
-	streamURL, err := buildStreamURL(unifiedURL)
+	streamURL, err := utils.BuildStreamURL(unifiedURL)
 	if err != nil {
 		return errors.Wrapf(err, "build stream url %v", unifiedURL)
 	}
 
 	// Pick a backend SRS server to proxy the RTMP stream.
-	backend, err := srsLoadBalancer.Pick(ctx, streamURL)
+	backend, err := lb.SrsLoadBalancer.Pick(ctx, streamURL)
 	if err != nil {
 		return errors.Wrapf(err, "pick backend for %v", streamURL)
 	}
@@ -131,7 +134,7 @@ func (v *srsWebRTCServer) HandleApiForWHEP(ctx context.Context, w http.ResponseW
 }
 
 func (v *srsWebRTCServer) proxyApiToBackend(
-	ctx context.Context, w http.ResponseWriter, r *http.Request, backend *SRSServer,
+	ctx context.Context, w http.ResponseWriter, r *http.Request, backend *lb.SRSServer,
 	remoteSDPOffer string, streamURL string,
 ) error {
 	// Parse HTTP port from backend.
@@ -184,23 +187,23 @@ func (v *srsWebRTCServer) proxyApiToBackend(
 	// Replace the WebRTC UDP port in answer.
 	localSDPAnswer := string(b)
 	for _, endpoint := range backend.RTC {
-		_, _, port, err := parseListenEndpoint(endpoint)
+		_, _, port, err := utils.ParseListenEndpoint(endpoint)
 		if err != nil {
 			return errors.Wrapf(err, "parse endpoint %v", endpoint)
 		}
 
 		from := fmt.Sprintf(" %v typ host", port)
-		to := fmt.Sprintf(" %v typ host", envWebRTCServer())
+		to := fmt.Sprintf(" %v typ host", env.EnvWebRTCServer())
 		localSDPAnswer = strings.Replace(localSDPAnswer, from, to, -1)
 	}
 
 	// Fetch the ice-ufrag and ice-pwd from local SDP answer.
-	remoteICEUfrag, remoteICEPwd, err := parseIceUfragPwd(remoteSDPOffer)
+	remoteICEUfrag, remoteICEPwd, err := utils.ParseIceUfragPwd(remoteSDPOffer)
 	if err != nil {
 		return errors.Wrapf(err, "parse remote sdp offer")
 	}
 
-	localICEUfrag, localICEPwd, err := parseIceUfragPwd(localSDPAnswer)
+	localICEUfrag, localICEPwd, err := utils.ParseIceUfragPwd(localSDPAnswer)
 	if err != nil {
 		return errors.Wrapf(err, "parse local sdp answer")
 	}
@@ -210,7 +213,7 @@ func (v *srsWebRTCServer) proxyApiToBackend(
 		RemoteICEUfrag: remoteICEUfrag, RemoteICEPwd: remoteICEPwd,
 		LocalICEUfrag: localICEUfrag, LocalICEPwd: localICEPwd,
 	}
-	if err := srsLoadBalancer.StoreWebRTC(ctx, streamURL, NewRTCConnection(func(c *RTCConnection) {
+	if err := lb.SrsLoadBalancer.StoreWebRTC(ctx, streamURL, NewRTCConnection(func(c *RTCConnection) {
 		c.StreamURL, c.Ufrag = streamURL, icePair.Ufrag()
 		c.Initialize(ctx, v.listener)
 
@@ -232,7 +235,7 @@ func (v *srsWebRTCServer) proxyApiToBackend(
 
 func (v *srsWebRTCServer) Run(ctx context.Context) error {
 	// Parse address to listen.
-	endpoint := envWebRTCServer()
+	endpoint := env.EnvWebRTCServer()
 	if !strings.Contains(endpoint, ":") {
 		endpoint = fmt.Sprintf(":%v", endpoint)
 	}
@@ -259,7 +262,7 @@ func (v *srsWebRTCServer) Run(ctx context.Context) error {
 			n, caddr, err := listener.ReadFromUDP(buf)
 			if err != nil {
 				// If context is canceled or connection is closed, exit gracefully without logging error.
-				if ctx.Err() != nil || isClosedNetworkError(err) {
+				if ctx.Err() != nil || utils.IsClosedNetworkError(err) {
 					logger.Df(ctx, "WebRTC server done")
 					return
 				}
@@ -283,7 +286,7 @@ func (v *srsWebRTCServer) handleClientUDP(ctx context.Context, addr *net.UDPAddr
 
 	// If STUN binding request, parse the ufrag and identify the connection.
 	if err := func() error {
-		if rtcIsRTPOrRTCP(data) || !rtcIsSTUN(data) {
+		if utils.RtcIsRTPOrRTCP(data) || !utils.RtcIsSTUN(data) {
 			return nil
 		}
 
@@ -299,10 +302,10 @@ func (v *srsWebRTCServer) handleClientUDP(ctx context.Context, addr *net.UDPAddr
 		}
 
 		// Load connection by username.
-		if s, err := srsLoadBalancer.LoadWebRTCByUfrag(ctx, pkt.Username); err != nil {
+		if s, err := lb.SrsLoadBalancer.LoadWebRTCByUfrag(ctx, pkt.Username); err != nil {
 			return errors.Wrapf(err, "load webrtc by ufrag %v", pkt.Username)
 		} else {
-			connection = s.Initialize(ctx, v.listener)
+			connection = s.(*RTCConnection).Initialize(ctx, v.listener)
 			logger.Df(ctx, "Create WebRTC connection by ufrag=%v, stream=%v", pkt.Username, connection.StreamURL)
 		}
 
@@ -382,6 +385,10 @@ func (v *RTCConnection) Initialize(ctx context.Context, listener *net.UDPConn) *
 	return v
 }
 
+func (v *RTCConnection) GetUfrag() string {
+	return v.Ufrag
+}
+
 func (v *RTCConnection) HandlePacket(addr *net.UDPAddr, data []byte) error {
 	ctx := v.ctx
 
@@ -430,7 +437,7 @@ func (v *RTCConnection) connectBackend(ctx context.Context) error {
 	}
 
 	// Pick a backend SRS server to proxy the RTC stream.
-	backend, err := srsLoadBalancer.Pick(ctx, v.StreamURL)
+	backend, err := lb.SrsLoadBalancer.Pick(ctx, v.StreamURL)
 	if err != nil {
 		return errors.Wrapf(err, "pick backend")
 	}
@@ -440,7 +447,7 @@ func (v *RTCConnection) connectBackend(ctx context.Context) error {
 		return errors.Errorf("no udp server")
 	}
 
-	_, _, udpPort, err := parseListenEndpoint(backend.RTC[0])
+	_, _, udpPort, err := utils.ParseListenEndpoint(backend.RTC[0])
 	if err != nil {
 		return errors.Wrapf(err, "parse udp port %v of %v for %v", backend.RTC[0], backend, v.StreamURL)
 	}

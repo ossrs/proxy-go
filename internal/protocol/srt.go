@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Winlin
 //
 // SPDX-License-Identifier: MIT
-package main
+package protocol
 
 import (
 	"bytes"
@@ -13,9 +13,12 @@ import (
 	stdSync "sync"
 	"time"
 
-	"srs-proxy/errors"
-	"srs-proxy/logger"
-	"srs-proxy/sync"
+	"srs-proxy/internal/env"
+	"srs-proxy/internal/errors"
+	"srs-proxy/internal/lb"
+	"srs-proxy/internal/logger"
+	"srs-proxy/internal/sync"
+	"srs-proxy/internal/utils"
 )
 
 // srsSRTServer is the proxy for SRS server via SRT. It will figure out which backend server to
@@ -56,7 +59,7 @@ func (v *srsSRTServer) Close() error {
 
 func (v *srsSRTServer) Run(ctx context.Context) error {
 	// Parse address to listen.
-	endpoint := envSRTServer()
+	endpoint := env.EnvSRTServer()
 	if !strings.Contains(endpoint, ":") {
 		endpoint = ":" + endpoint
 	}
@@ -83,7 +86,7 @@ func (v *srsSRTServer) Run(ctx context.Context) error {
 			n, caddr, err := v.listener.ReadFromUDP(buf)
 			if err != nil {
 				// If context is canceled or connection is closed, exit gracefully without logging error.
-				if ctx.Err() != nil || isClosedNetworkError(err) {
+				if ctx.Err() != nil || utils.IsClosedNetworkError(err) {
 					logger.Df(ctx, "SRT server done")
 					return
 				}
@@ -103,10 +106,10 @@ func (v *srsSRTServer) Run(ctx context.Context) error {
 }
 
 func (v *srsSRTServer) handleClientUDP(ctx context.Context, addr *net.UDPAddr, data []byte) error {
-	socketID := srtParseSocketID(data)
+	socketID := utils.SrtParseSocketID(data)
 
 	var pkt *SRTHandshakePacket
-	if srtIsHandshake(data) {
+	if utils.SrtIsHandshake(data) {
 		pkt = &SRTHandshakePacket{}
 		if err := pkt.UnmarshalBinary(data); err != nil {
 			return err
@@ -334,7 +337,7 @@ func (v *SRTConnection) connectBackend(ctx context.Context, streamID string) err
 	}
 
 	// Parse stream id to host and resource.
-	host, resource, err := parseSRTStreamID(streamID)
+	host, resource, err := utils.ParseSRTStreamID(streamID)
 	if err != nil {
 		return errors.Wrapf(err, "parse stream id %v", streamID)
 	}
@@ -343,13 +346,13 @@ func (v *SRTConnection) connectBackend(ctx context.Context, streamID string) err
 		host = "localhost"
 	}
 
-	streamURL, err := buildStreamURL(fmt.Sprintf("srt://%v/%v", host, resource))
+	streamURL, err := utils.BuildStreamURL(fmt.Sprintf("srt://%v/%v", host, resource))
 	if err != nil {
 		return errors.Wrapf(err, "build stream url %v", streamID)
 	}
 
 	// Pick a backend SRS server to proxy the SRT stream.
-	backend, err := srsLoadBalancer.Pick(ctx, streamURL)
+	backend, err := lb.SrsLoadBalancer.Pick(ctx, streamURL)
 	if err != nil {
 		return errors.Wrapf(err, "pick backend for %v", streamURL)
 	}
@@ -359,7 +362,7 @@ func (v *SRTConnection) connectBackend(ctx context.Context, streamID string) err
 		return errors.Errorf("no udp server %v for %v", backend, streamURL)
 	}
 
-	_, _, udpPort, err := parseListenEndpoint(backend.SRT[0])
+	_, _, udpPort, err := utils.ParseListenEndpoint(backend.SRT[0])
 	if err != nil {
 		return errors.Wrapf(err, "parse udp port %v of %v for %v", backend.SRT[0], backend, streamURL)
 	}

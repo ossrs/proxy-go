@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Winlin
 //
 // SPDX-License-Identifier: MIT
-package main
+package utils
 
 import (
 	"context"
@@ -23,16 +23,18 @@ import (
 	"syscall"
 	"time"
 
-	"srs-proxy/errors"
-	"srs-proxy/logger"
+	"srs-proxy/internal/env"
+	"srs-proxy/internal/errors"
+	"srs-proxy/internal/logger"
+	"srs-proxy/internal/version"
 )
 
-func apiResponse(ctx context.Context, w http.ResponseWriter, r *http.Request, data any) {
-	w.Header().Set("Server", fmt.Sprintf("%v/%v", Signature(), Version()))
+func ApiResponse(ctx context.Context, w http.ResponseWriter, r *http.Request, data any) {
+	w.Header().Set("Server", fmt.Sprintf("%v/%v", version.Signature(), version.Version()))
 
 	b, err := json.Marshal(data)
 	if err != nil {
-		apiError(ctx, w, r, errors.Wrapf(err, "marshal %v %v", reflect.TypeOf(data), data))
+		ApiError(ctx, w, r, errors.Wrapf(err, "marshal %v %v", reflect.TypeOf(data), data))
 		return
 	}
 
@@ -41,14 +43,14 @@ func apiResponse(ctx context.Context, w http.ResponseWriter, r *http.Request, da
 	w.Write(b)
 }
 
-func apiError(ctx context.Context, w http.ResponseWriter, r *http.Request, err error) {
+func ApiError(ctx context.Context, w http.ResponseWriter, r *http.Request, err error) {
 	logger.Wf(ctx, "HTTP API error %+v", err)
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusInternalServerError)
 	fmt.Fprintf(w, "%v\n", err)
 }
 
-func apiCORS(ctx context.Context, w http.ResponseWriter, r *http.Request) bool {
+func ApiCORS(ctx context.Context, w http.ResponseWriter, r *http.Request) bool {
 	// Always support CORS. Note that browser may send origin header for m3u8, but no origin header
 	// for ts. So we always response CORS header.
 	if true {
@@ -69,9 +71,9 @@ func apiCORS(ctx context.Context, w http.ResponseWriter, r *http.Request) bool {
 	return false
 }
 
-func parseGracefullyQuitTimeout() (time.Duration, error) {
-	if t, err := time.ParseDuration(envGraceQuitTimeout()); err != nil {
-		return 0, errors.Wrapf(err, "parse duration %v", envGraceQuitTimeout())
+func ParseGracefullyQuitTimeout() (time.Duration, error) {
+	if t, err := time.ParseDuration(env.EnvGraceQuitTimeout()); err != nil {
+		return 0, errors.Wrapf(err, "parse duration %v", env.EnvGraceQuitTimeout())
 	} else {
 		return t, nil
 	}
@@ -96,8 +98,8 @@ func ParseBody(r io.ReadCloser, v interface{}) error {
 	return nil
 }
 
-// buildStreamURL build as vhost/app/stream for stream URL r.
-func buildStreamURL(r string) (string, error) {
+// BuildStreamURL build as vhost/app/stream for stream URL r.
+func BuildStreamURL(r string) (string, error) {
 	u, err := url.Parse(r)
 	if err != nil {
 		return "", errors.Wrapf(err, "parse url %v", r)
@@ -119,8 +121,8 @@ func buildStreamURL(r string) (string, error) {
 	return fmt.Sprintf("%v%v", u.Hostname(), u.Path), nil
 }
 
-// isPeerClosedError indicates whether peer object closed the connection.
-func isPeerClosedError(err error) bool {
+// IsPeerClosedError indicates whether peer object closed the connection.
+func IsPeerClosedError(err error) bool {
 	causeErr := errors.Cause(err)
 
 	if stdErr.Is(causeErr, io.EOF) {
@@ -142,8 +144,8 @@ func isPeerClosedError(err error) bool {
 	return false
 }
 
-// isClosedNetworkError indicates whether the error is due to a closed network connection.
-func isClosedNetworkError(err error) bool {
+// IsClosedNetworkError indicates whether the error is due to a closed network connection.
+func IsClosedNetworkError(err error) bool {
 	if err == nil {
 		return false
 	}
@@ -160,10 +162,10 @@ func isClosedNetworkError(err error) bool {
 	return strings.Contains(causeErr.Error(), "use of closed network connection")
 }
 
-// convertURLToStreamURL convert the URL in HTTP request to special URLs. The unifiedURL is the URL
+// ConvertURLToStreamURL convert the URL in HTTP request to special URLs. The unifiedURL is the URL
 // in unified, foramt as scheme://vhost/app/stream without extensions. While the fullURL is the unifiedURL
 // with extension.
-func convertURLToStreamURL(r *http.Request) (unifiedURL, fullURL string) {
+func ConvertURLToStreamURL(r *http.Request) (unifiedURL, fullURL string) {
 	scheme := "http"
 	if r.TLS != nil {
 		scheme = "https"
@@ -198,31 +200,31 @@ func convertURLToStreamURL(r *http.Request) (unifiedURL, fullURL string) {
 	return
 }
 
-// rtcIsSTUN returns true if data of UDP payload is a STUN packet.
-func rtcIsSTUN(data []byte) bool {
+// RtcIsSTUN returns true if data of UDP payload is a STUN packet.
+func RtcIsSTUN(data []byte) bool {
 	return len(data) > 0 && (data[0] == 0 || data[0] == 1)
 }
 
-// rtcIsRTPOrRTCP returns true if data of UDP payload is a RTP or RTCP packet.
-func rtcIsRTPOrRTCP(data []byte) bool {
+// RtcIsRTPOrRTCP returns true if data of UDP payload is a RTP or RTCP packet.
+func RtcIsRTPOrRTCP(data []byte) bool {
 	return len(data) >= 12 && (data[0]&0xC0) == 0x80
 }
 
-// srtIsHandshake returns true if data of UDP payload is a SRT handshake packet.
-func srtIsHandshake(data []byte) bool {
+// SrtIsHandshake returns true if data of UDP payload is a SRT handshake packet.
+func SrtIsHandshake(data []byte) bool {
 	return len(data) >= 4 && binary.BigEndian.Uint32(data) == 0x80000000
 }
 
-// srtParseSocketID parse the socket id from the SRT packet.
-func srtParseSocketID(data []byte) uint32 {
+// SrtParseSocketID parse the socket id from the SRT packet.
+func SrtParseSocketID(data []byte) uint32 {
 	if len(data) >= 16 {
 		return binary.BigEndian.Uint32(data[12:])
 	}
 	return 0
 }
 
-// parseIceUfragPwd parse the ice-ufrag and ice-pwd from the SDP.
-func parseIceUfragPwd(sdp string) (ufrag, pwd string, err error) {
+// ParseIceUfragPwd parse the ice-ufrag and ice-pwd from the SDP.
+func ParseIceUfragPwd(sdp string) (ufrag, pwd string, err error) {
 	if true {
 		ufragRe := regexp.MustCompile(`a=ice-ufrag:([^\s]+)`)
 		ufragMatch := ufragRe.FindStringSubmatch(sdp)
@@ -244,9 +246,9 @@ func parseIceUfragPwd(sdp string) (ufrag, pwd string, err error) {
 	return ufrag, pwd, nil
 }
 
-// parseSRTStreamID parse the SRT stream id to host(optional) and resource(required).
+// ParseSRTStreamID parse the SRT stream id to host(optional) and resource(required).
 // See https://ossrs.io/lts/en-us/docs/v7/doc/srt#srt-url
-func parseSRTStreamID(sid string) (host, resource string, err error) {
+func ParseSRTStreamID(sid string) (host, resource string, err error) {
 	if true {
 		hostRe := regexp.MustCompile(`h=([^,]+)`)
 		hostMatch := hostRe.FindStringSubmatch(sid)
@@ -267,11 +269,11 @@ func parseSRTStreamID(sid string) (host, resource string, err error) {
 	return host, resource, nil
 }
 
-// parseListenEndpoint parse the listen endpoint as:
+// ParseListenEndpoint parse the listen endpoint as:
 //
 //	port The tcp listen port, like 1935.
 //	protocol://ip:port The listen endpoint, like tcp://:1935 or tcp://0.0.0.0:1935
-func parseListenEndpoint(ep string) (protocol string, ip net.IP, port uint16, err error) {
+func ParseListenEndpoint(ep string) (protocol string, ip net.IP, port uint16, err error) {
 	// If no colon in ep, it's port in string.
 	if !strings.Contains(ep, ":") {
 		if p, err := strconv.Atoi(ep); err != nil {

@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Winlin
 //
 // SPDX-License-Identifier: MIT
-package main
+package protocol
 
 import (
 	"context"
@@ -12,8 +12,12 @@ import (
 	"sync"
 	"time"
 
-	"srs-proxy/errors"
-	"srs-proxy/logger"
+	"srs-proxy/internal/env"
+	"srs-proxy/internal/errors"
+	"srs-proxy/internal/lb"
+	"srs-proxy/internal/logger"
+	"srs-proxy/internal/utils"
+	"srs-proxy/internal/version"
 )
 
 // srsHTTPAPIServer is the proxy for SRS HTTP API, to proxy the WebRTC HTTP API like WHIP and WHEP,
@@ -29,10 +33,10 @@ type srsHTTPAPIServer struct {
 	wg sync.WaitGroup
 }
 
-func NewSRSHTTPAPIServer(opts ...func(*srsHTTPAPIServer)) *srsHTTPAPIServer {
-	v := &srsHTTPAPIServer{}
-	for _, opt := range opts {
-		opt(v)
+func NewSRSHTTPAPIServer(gracefulQuitTimeout time.Duration, rtc *srsWebRTCServer) *srsHTTPAPIServer {
+	v := &srsHTTPAPIServer{
+		gracefulQuitTimeout: gracefulQuitTimeout,
+		rtc:                 rtc,
 	}
 	return v
 }
@@ -48,7 +52,7 @@ func (v *srsHTTPAPIServer) Close() error {
 
 func (v *srsHTTPAPIServer) Run(ctx context.Context) error {
 	// Parse address to listen.
-	addr := envHttpAPI()
+	addr := env.EnvHttpAPI()
 	if !strings.Contains(addr, ":") {
 		addr = ":" + addr
 	}
@@ -72,9 +76,9 @@ func (v *srsHTTPAPIServer) Run(ctx context.Context) error {
 	// The basic version handler, also can be used as health check API.
 	logger.Df(ctx, "Handle /api/v1/versions by %v", addr)
 	mux.HandleFunc("/api/v1/versions", func(w http.ResponseWriter, r *http.Request) {
-		apiResponse(ctx, w, r, map[string]string{
-			"signature": Signature(),
-			"version":   Version(),
+		utils.ApiResponse(ctx, w, r, map[string]string{
+			"signature": version.Signature(),
+			"version":   version.Version(),
 		})
 	})
 
@@ -82,7 +86,7 @@ func (v *srsHTTPAPIServer) Run(ctx context.Context) error {
 	logger.Df(ctx, "Handle /rtc/v1/whip/ by %v", addr)
 	mux.HandleFunc("/rtc/v1/whip/", func(w http.ResponseWriter, r *http.Request) {
 		if err := v.rtc.HandleApiForWHIP(ctx, w, r); err != nil {
-			apiError(ctx, w, r, err)
+			utils.ApiError(ctx, w, r, err)
 		}
 	})
 
@@ -90,7 +94,7 @@ func (v *srsHTTPAPIServer) Run(ctx context.Context) error {
 	logger.Df(ctx, "Handle /rtc/v1/whep/ by %v", addr)
 	mux.HandleFunc("/rtc/v1/whep/", func(w http.ResponseWriter, r *http.Request) {
 		if err := v.rtc.HandleApiForWHEP(ctx, w, r); err != nil {
-			apiError(ctx, w, r, err)
+			utils.ApiError(ctx, w, r, err)
 		}
 	})
 
@@ -127,10 +131,9 @@ type systemAPI struct {
 	wg sync.WaitGroup
 }
 
-func NewSystemAPI(opts ...func(*systemAPI)) *systemAPI {
-	v := &systemAPI{}
-	for _, opt := range opts {
-		opt(v)
+func NewSystemAPI(gracefulQuitTimeout time.Duration) *systemAPI {
+	v := &systemAPI{
+		gracefulQuitTimeout: gracefulQuitTimeout,
 	}
 	return v
 }
@@ -146,7 +149,7 @@ func (v *systemAPI) Close() error {
 
 func (v *systemAPI) Run(ctx context.Context) error {
 	// Parse address to listen.
-	addr := envSystemAPI()
+	addr := env.EnvSystemAPI()
 	if !strings.Contains(addr, ":") {
 		addr = ":" + addr
 	}
@@ -170,9 +173,9 @@ func (v *systemAPI) Run(ctx context.Context) error {
 	// The basic version handler, also can be used as health check API.
 	logger.Df(ctx, "Handle /api/v1/versions by %v", addr)
 	mux.HandleFunc("/api/v1/versions", func(w http.ResponseWriter, r *http.Request) {
-		apiResponse(ctx, w, r, map[string]string{
-			"signature": Signature(),
-			"version":   Version(),
+		utils.ApiResponse(ctx, w, r, map[string]string{
+			"signature": version.Signature(),
+			"version":   version.Version(),
 		})
 	})
 
@@ -182,7 +185,7 @@ func (v *systemAPI) Run(ctx context.Context) error {
 		if err := func() error {
 			var deviceID, ip, serverID, serviceID, pid string
 			var rtmp, stream, api, srt, rtc []string
-			if err := ParseBody(r.Body, &struct {
+			if err := utils.ParseBody(r.Body, &struct {
 				// The IP of SRS, mandatory.
 				IP *string `json:"ip"`
 				// The server id of SRS, store in file, may not change, mandatory.
@@ -227,21 +230,21 @@ func (v *systemAPI) Run(ctx context.Context) error {
 				return errors.Errorf("empty rtmp")
 			}
 
-			server := NewSRSServer(func(srs *SRSServer) {
+			server := lb.NewSRSServer(func(srs *lb.SRSServer) {
 				srs.IP, srs.DeviceID = ip, deviceID
 				srs.ServerID, srs.ServiceID, srs.PID = serverID, serviceID, pid
 				srs.RTMP, srs.HTTP, srs.API = rtmp, stream, api
 				srs.SRT, srs.RTC = srt, rtc
 				srs.UpdatedAt = time.Now()
 			})
-			if err := srsLoadBalancer.Update(ctx, server); err != nil {
+			if err := lb.SrsLoadBalancer.Update(ctx, server); err != nil {
 				return errors.Wrapf(err, "update SRS server %+v", server)
 			}
 
 			logger.Df(ctx, "Register SRS media server, %+v", server)
 			return nil
 		}(); err != nil {
-			apiError(ctx, w, r, err)
+			utils.ApiError(ctx, w, r, err)
 		}
 
 		type Response struct {
@@ -249,7 +252,7 @@ func (v *systemAPI) Run(ctx context.Context) error {
 			PID  string `json:"pid"`
 		}
 
-		apiResponse(ctx, w, r, &Response{
+		utils.ApiResponse(ctx, w, r, &Response{
 			Code: 0, PID: fmt.Sprintf("%v", os.Getpid()),
 		})
 	})
