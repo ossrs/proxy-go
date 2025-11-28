@@ -25,6 +25,8 @@ import (
 // proxy to. It only parses the SRT handshake messages, parses the stream id, and proxy to the
 // backend server.
 type srsSRTServer struct {
+	// The environment interface.
+	environment env.Environment
 	// The UDP listener for SRT server.
 	listener *net.UDPConn
 
@@ -37,9 +39,10 @@ type srsSRTServer struct {
 	wg stdSync.WaitGroup
 }
 
-func NewSRSSRTServer(opts ...func(*srsSRTServer)) *srsSRTServer {
+func NewSRSSRTServer(environment env.Environment, opts ...func(*srsSRTServer)) *srsSRTServer {
 	v := &srsSRTServer{
-		start: time.Now(),
+		environment: environment,
+		start:       time.Now(),
 	}
 
 	for _, opt := range opts {
@@ -59,7 +62,7 @@ func (v *srsSRTServer) Close() error {
 
 func (v *srsSRTServer) Run(ctx context.Context) error {
 	// Parse address to listen.
-	endpoint := env.EnvSRTServer()
+	endpoint := v.environment.SRTServer()
 	if !strings.Contains(endpoint, ":") {
 		endpoint = ":" + endpoint
 	}

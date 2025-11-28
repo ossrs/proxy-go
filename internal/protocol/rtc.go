@@ -27,6 +27,8 @@ import (
 // which backend server to proxy to. It will also replace the UDP port to the proxy server's in the
 // SDP answer.
 type srsWebRTCServer struct {
+	// The environment interface.
+	environment env.Environment
 	// The UDP listener for WebRTC server.
 	listener *net.UDPConn
 
@@ -42,8 +44,8 @@ type srsWebRTCServer struct {
 	wg stdSync.WaitGroup
 }
 
-func NewSRSWebRTCServer(opts ...func(*srsWebRTCServer)) *srsWebRTCServer {
-	v := &srsWebRTCServer{}
+func NewSRSWebRTCServer(environment env.Environment, opts ...func(*srsWebRTCServer)) *srsWebRTCServer {
+	v := &srsWebRTCServer{environment: environment}
 	for _, opt := range opts {
 		opt(v)
 	}
@@ -193,7 +195,7 @@ func (v *srsWebRTCServer) proxyApiToBackend(
 		}
 
 		from := fmt.Sprintf(" %v typ host", port)
-		to := fmt.Sprintf(" %v typ host", env.EnvWebRTCServer())
+		to := fmt.Sprintf(" %v typ host", v.environment.WebRTCServer())
 		localSDPAnswer = strings.Replace(localSDPAnswer, from, to, -1)
 	}
 
@@ -235,7 +237,7 @@ func (v *srsWebRTCServer) proxyApiToBackend(
 
 func (v *srsWebRTCServer) Run(ctx context.Context) error {
 	// Parse address to listen.
-	endpoint := env.EnvWebRTCServer()
+	endpoint := v.environment.WebRTCServer()
 	if !strings.Contains(endpoint, ":") {
 		endpoint = fmt.Sprintf(":%v", endpoint)
 	}

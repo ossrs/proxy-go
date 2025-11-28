@@ -23,6 +23,8 @@ import (
 // srsHTTPAPIServer is the proxy for SRS HTTP API, to proxy the WebRTC HTTP API like WHIP and WHEP,
 // to proxy other HTTP API of SRS like the streams and clients, etc.
 type srsHTTPAPIServer struct {
+	// The environment interface.
+	environment env.Environment
 	// The underlayer HTTP server.
 	server *http.Server
 	// The WebRTC server.
@@ -33,8 +35,9 @@ type srsHTTPAPIServer struct {
 	wg sync.WaitGroup
 }
 
-func NewSRSHTTPAPIServer(gracefulQuitTimeout time.Duration, rtc *srsWebRTCServer) *srsHTTPAPIServer {
+func NewSRSHTTPAPIServer(environment env.Environment, gracefulQuitTimeout time.Duration, rtc *srsWebRTCServer) *srsHTTPAPIServer {
 	v := &srsHTTPAPIServer{
+		environment:         environment,
 		gracefulQuitTimeout: gracefulQuitTimeout,
 		rtc:                 rtc,
 	}
@@ -52,7 +55,7 @@ func (v *srsHTTPAPIServer) Close() error {
 
 func (v *srsHTTPAPIServer) Run(ctx context.Context) error {
 	// Parse address to listen.
-	addr := env.EnvHttpAPI()
+	addr := v.environment.HttpAPI()
 	if !strings.Contains(addr, ":") {
 		addr = ":" + addr
 	}
@@ -123,6 +126,8 @@ func (v *srsHTTPAPIServer) Run(ctx context.Context) error {
 // to proxy server. It also provides some other system APIs like the status of proxy server, like exporter
 // for Prometheus metrics.
 type systemAPI struct {
+	// The environment interface.
+	environment env.Environment
 	// The underlayer HTTP server.
 	server *http.Server
 	// The gracefully quit timeout, wait server to quit.
@@ -131,8 +136,9 @@ type systemAPI struct {
 	wg sync.WaitGroup
 }
 
-func NewSystemAPI(gracefulQuitTimeout time.Duration) *systemAPI {
+func NewSystemAPI(environment env.Environment, gracefulQuitTimeout time.Duration) *systemAPI {
 	v := &systemAPI{
+		environment:         environment,
 		gracefulQuitTimeout: gracefulQuitTimeout,
 	}
 	return v
@@ -149,7 +155,7 @@ func (v *systemAPI) Close() error {
 
 func (v *systemAPI) Run(ctx context.Context) error {
 	// Parse address to listen.
-	addr := env.EnvSystemAPI()
+	addr := v.environment.SystemAPI()
 	if !strings.Contains(addr, ":") {
 		addr = ":" + addr
 	}

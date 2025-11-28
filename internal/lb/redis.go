@@ -14,67 +14,35 @@ import (
 	// Use v8 because we use Go 1.16+, while v9 requires Go 1.18+
 	"github.com/go-redis/redis/v8"
 
+	"srs-proxy/internal/env"
 	"srs-proxy/internal/errors"
 	"srs-proxy/internal/logger"
 )
 
 // RedisLoadBalancer stores state in Redis.
 type RedisLoadBalancer struct {
+	// The environment interface.
+	environment env.Environment
 	// The redis client sdk.
 	rdb *redis.Client
-
-	// Environment variable accessors (injected for testability)
-	envRedisHost             func() string
-	envRedisPort             func() string
-	envRedisPassword         func() string
-	envRedisDB               func() string
-	envDefaultBackendEnabled func() string
-	envDefaultBackendIP      func() string
-	envDefaultBackendRTMP    func() string
-	envDefaultBackendHttp    func() string
-	envDefaultBackendAPI     func() string
-	envDefaultBackendRTC     func() string
-	envDefaultBackendSRT     func() string
 }
 
 // NewRedisLoadBalancer creates a new Redis-based load balancer.
-func NewRedisLoadBalancer(
-	envRedisHost func() string,
-	envRedisPort func() string,
-	envRedisPassword func() string,
-	envRedisDB func() string,
-	envDefaultBackendEnabled func() string,
-	envDefaultBackendIP func() string,
-	envDefaultBackendRTMP func() string,
-	envDefaultBackendHttp func() string,
-	envDefaultBackendAPI func() string,
-	envDefaultBackendRTC func() string,
-	envDefaultBackendSRT func() string,
-) SRSLoadBalancer {
+func NewRedisLoadBalancer(environment env.Environment) SRSLoadBalancer {
 	return &RedisLoadBalancer{
-		envRedisHost:             envRedisHost,
-		envRedisPort:             envRedisPort,
-		envRedisPassword:         envRedisPassword,
-		envRedisDB:               envRedisDB,
-		envDefaultBackendEnabled: envDefaultBackendEnabled,
-		envDefaultBackendIP:      envDefaultBackendIP,
-		envDefaultBackendRTMP:    envDefaultBackendRTMP,
-		envDefaultBackendHttp:    envDefaultBackendHttp,
-		envDefaultBackendAPI:     envDefaultBackendAPI,
-		envDefaultBackendRTC:     envDefaultBackendRTC,
-		envDefaultBackendSRT:     envDefaultBackendSRT,
+		environment: environment,
 	}
 }
 
 func (v *RedisLoadBalancer) Initialize(ctx context.Context) error {
-	redisDatabase, err := strconv.Atoi(v.envRedisDB())
+	redisDatabase, err := strconv.Atoi(v.environment.RedisDB())
 	if err != nil {
-		return errors.Wrapf(err, "invalid PROXY_REDIS_DB %v", v.envRedisDB())
+		return errors.Wrapf(err, "invalid PROXY_REDIS_DB %v", v.environment.RedisDB())
 	}
 
 	rdb := redis.NewClient(&redis.Options{
-		Addr:     fmt.Sprintf("%v:%v", v.envRedisHost(), v.envRedisPort()),
-		Password: v.envRedisPassword(),
+		Addr:     fmt.Sprintf("%v:%v", v.environment.RedisHost(), v.environment.RedisPort()),
+		Password: v.environment.RedisPassword(),
 		DB:       redisDatabase,
 	})
 	v.rdb = rdb
@@ -84,15 +52,7 @@ func (v *RedisLoadBalancer) Initialize(ctx context.Context) error {
 	}
 	logger.Df(ctx, "RedisLB: connected to redis %v ok", rdb.String())
 
-	server, err := NewDefaultSRSForDebugging(
-		v.envDefaultBackendEnabled,
-		v.envDefaultBackendIP,
-		v.envDefaultBackendRTMP,
-		v.envDefaultBackendHttp,
-		v.envDefaultBackendAPI,
-		v.envDefaultBackendRTC,
-		v.envDefaultBackendSRT,
-	)
+	server, err := NewDefaultSRSForDebugging(v.environment)
 	if err != nil {
 		return errors.Wrapf(err, "initialize default SRS")
 	}

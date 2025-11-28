@@ -27,6 +27,8 @@ import (
 // HLS, etc. The proxy server will figure out which SRS origin server to proxy to, then proxy
 // the request to the origin server.
 type srsHTTPStreamServer struct {
+	// The environment interface.
+	environment env.Environment
 	// The underlayer HTTP server.
 	server *http.Server
 	// The gracefully quit timeout, wait server to quit.
@@ -35,8 +37,9 @@ type srsHTTPStreamServer struct {
 	wg stdSync.WaitGroup
 }
 
-func NewSRSHTTPStreamServer(gracefulQuitTimeout time.Duration) *srsHTTPStreamServer {
+func NewSRSHTTPStreamServer(environment env.Environment, gracefulQuitTimeout time.Duration) *srsHTTPStreamServer {
 	v := &srsHTTPStreamServer{
+		environment:         environment,
 		gracefulQuitTimeout: gracefulQuitTimeout,
 	}
 	return v
@@ -53,7 +56,7 @@ func (v *srsHTTPStreamServer) Close() error {
 
 func (v *srsHTTPStreamServer) Run(ctx context.Context) error {
 	// Parse address to listen.
-	addr := env.EnvHttpServer()
+	addr := v.environment.HttpServer()
 	if !strings.Contains(addr, ":") {
 		addr = ":" + addr
 	}
@@ -99,7 +102,7 @@ func (v *srsHTTPStreamServer) Run(ctx context.Context) error {
 
 	// The static web server, for the web pages.
 	var staticServer http.Handler
-	if staticFiles := env.EnvStaticFiles(); staticFiles != "" {
+	if staticFiles := v.environment.StaticFiles(); staticFiles != "" {
 		if _, err := os.Stat(staticFiles); err != nil {
 			return errors.Wrapf(err, "invalid static files %v", staticFiles)
 		}

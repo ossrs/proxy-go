@@ -8,50 +8,43 @@ import (
 	"os"
 	"time"
 
+	"srs-proxy/internal/env"
 	"srs-proxy/internal/logger"
 )
 
 // NewDefaultSRSForDebugging initialize the default SRS media server, for debugging only.
-func NewDefaultSRSForDebugging(
-	envDefaultBackendEnabled func() string,
-	envDefaultBackendIP func() string,
-	envDefaultBackendRTMP func() string,
-	envDefaultBackendHttp func() string,
-	envDefaultBackendAPI func() string,
-	envDefaultBackendRTC func() string,
-	envDefaultBackendSRT func() string,
-) (*SRSServer, error) {
-	if envDefaultBackendEnabled() != "on" {
+func NewDefaultSRSForDebugging(environment env.Environment) (*SRSServer, error) {
+	if environment.DefaultBackendEnabled() != "on" {
 		return nil, nil
 	}
 
-	if envDefaultBackendIP() == "" {
+	if environment.DefaultBackendIP() == "" {
 		return nil, fmt.Errorf("empty default backend ip")
 	}
-	if envDefaultBackendRTMP() == "" {
+	if environment.DefaultBackendRTMP() == "" {
 		return nil, fmt.Errorf("empty default backend rtmp")
 	}
 
 	server := NewSRSServer(func(srs *SRSServer) {
-		srs.IP = envDefaultBackendIP()
-		srs.RTMP = []string{envDefaultBackendRTMP()}
+		srs.IP = environment.DefaultBackendIP()
+		srs.RTMP = []string{environment.DefaultBackendRTMP()}
 		srs.ServerID = fmt.Sprintf("default-%v", logger.GenerateContextID())
 		srs.ServiceID = logger.GenerateContextID()
 		srs.PID = fmt.Sprintf("%v", os.Getpid())
 		srs.UpdatedAt = time.Now()
 	})
 
-	if envDefaultBackendHttp() != "" {
-		server.HTTP = []string{envDefaultBackendHttp()}
+	if environment.DefaultBackendHttp() != "" {
+		server.HTTP = []string{environment.DefaultBackendHttp()}
 	}
-	if envDefaultBackendAPI() != "" {
-		server.API = []string{envDefaultBackendAPI()}
+	if environment.DefaultBackendAPI() != "" {
+		server.API = []string{environment.DefaultBackendAPI()}
 	}
-	if envDefaultBackendRTC() != "" {
-		server.RTC = []string{envDefaultBackendRTC()}
+	if environment.DefaultBackendRTC() != "" {
+		server.RTC = []string{environment.DefaultBackendRTC()}
 	}
-	if envDefaultBackendSRT() != "" {
-		server.SRT = []string{envDefaultBackendSRT()}
+	if environment.DefaultBackendSRT() != "" {
+		server.SRT = []string{environment.DefaultBackendSRT()}
 	}
 	return server, nil
 }

@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"time"
 
+	"srs-proxy/internal/env"
 	"srs-proxy/internal/errors"
 	"srs-proxy/internal/logger"
 	"srs-proxy/internal/sync"
@@ -16,6 +17,8 @@ import (
 
 // MemoryLoadBalancer stores state in memory.
 type MemoryLoadBalancer struct {
+	// The environment interface.
+	environment env.Environment
 	// All available SRS servers, key is server ID.
 	servers sync.Map[string, *SRSServer]
 	// The picked server to service client by specified stream URL, key is stream url.
@@ -28,48 +31,17 @@ type MemoryLoadBalancer struct {
 	rtcStreamURL sync.Map[string, RTCConnection]
 	// The WebRTC streaming, key is ufrag.
 	rtcUfrag sync.Map[string, RTCConnection]
-
-	// Environment variable accessors (injected for testability)
-	envDefaultBackendEnabled func() string
-	envDefaultBackendIP      func() string
-	envDefaultBackendRTMP    func() string
-	envDefaultBackendHttp    func() string
-	envDefaultBackendAPI     func() string
-	envDefaultBackendRTC     func() string
-	envDefaultBackendSRT     func() string
 }
 
 // NewMemoryLoadBalancer creates a new memory-based load balancer.
-func NewMemoryLoadBalancer(
-	envDefaultBackendEnabled func() string,
-	envDefaultBackendIP func() string,
-	envDefaultBackendRTMP func() string,
-	envDefaultBackendHttp func() string,
-	envDefaultBackendAPI func() string,
-	envDefaultBackendRTC func() string,
-	envDefaultBackendSRT func() string,
-) SRSLoadBalancer {
+func NewMemoryLoadBalancer(environment env.Environment) SRSLoadBalancer {
 	return &MemoryLoadBalancer{
-		envDefaultBackendEnabled: envDefaultBackendEnabled,
-		envDefaultBackendIP:      envDefaultBackendIP,
-		envDefaultBackendRTMP:    envDefaultBackendRTMP,
-		envDefaultBackendHttp:    envDefaultBackendHttp,
-		envDefaultBackendAPI:     envDefaultBackendAPI,
-		envDefaultBackendRTC:     envDefaultBackendRTC,
-		envDefaultBackendSRT:     envDefaultBackendSRT,
+		environment: environment,
 	}
 }
 
 func (v *MemoryLoadBalancer) Initialize(ctx context.Context) error {
-	server, err := NewDefaultSRSForDebugging(
-		v.envDefaultBackendEnabled,
-		v.envDefaultBackendIP,
-		v.envDefaultBackendRTMP,
-		v.envDefaultBackendHttp,
-		v.envDefaultBackendAPI,
-		v.envDefaultBackendRTC,
-		v.envDefaultBackendSRT,
-	)
+	server, err := NewDefaultSRSForDebugging(v.environment)
 	if err != nil {
 		return errors.Wrapf(err, "initialize default SRS")
 	}

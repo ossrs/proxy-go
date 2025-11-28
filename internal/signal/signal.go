@@ -27,10 +27,11 @@ func InstallSignals(ctx context.Context, cancel context.CancelFunc) {
 	}()
 }
 
-func InstallForceQuit(ctx context.Context) error {
+func InstallForceQuit(ctx context.Context, environment env.Environment) error {
 	var forceTimeout time.Duration
-	if t, err := time.ParseDuration(env.EnvForceQuitTimeout()); err != nil {
-		return errors.Wrapf(err, "parse force timeout %v", env.EnvForceQuitTimeout())
+	timeoutStr := environment.ForceQuitTimeout()
+	if t, err := time.ParseDuration(timeoutStr); err != nil {
+		return errors.Wrapf(err, "parse force timeout %v", timeoutStr)
 	} else {
 		forceTimeout = t
 	}

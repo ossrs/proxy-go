@@ -24,14 +24,16 @@ import (
 // server. It will figure out the backend server to proxy to. Unlike the edge server, it will
 // not cache the stream, but just proxy the stream to backend.
 type srsRTMPServer struct {
+	// The environment interface.
+	environment env.Environment
 	// The TCP listener for RTMP server.
 	listener *net.TCPListener
 	// The wait group for all goroutines.
 	wg sync.WaitGroup
 }
 
-func NewSRSRTMPServer(opts ...func(*srsRTMPServer)) *srsRTMPServer {
-	v := &srsRTMPServer{}
+func NewSRSRTMPServer(environment env.Environment, opts ...func(*srsRTMPServer)) *srsRTMPServer {
+	v := &srsRTMPServer{environment: environment}
 	for _, opt := range opts {
 		opt(v)
 	}
@@ -48,7 +50,7 @@ func (v *srsRTMPServer) Close() error {
 }
 
 func (v *srsRTMPServer) Run(ctx context.Context) error {
-	endpoint := env.EnvRtmpServer()
+	endpoint := v.environment.RtmpServer()
 	if !strings.Contains(endpoint, ":") {
 		endpoint = ":" + endpoint
 	}

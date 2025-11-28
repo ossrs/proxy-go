@@ -11,38 +11,6 @@ Key characteristics:
 - Backend origin servers register via System API
 - Official solution for SRS Origin Cluster
 
-## Design Overview
-
-See @doc/design.md for the complete architecture overview, including:
-- Stateless proxy architecture with built-in load balancing
-- Single Proxy Mode (memory-based)
-- Multi-Proxy Mode (Redis sync, AWS NLB)
-- Complete Cluster (Edge + Proxy + Origins)
-
-## Configuration
-
-All configuration via environment variables (`.env` file supported):
-
-### Server Listen Ports (client-facing)
-- `PROXY_RTMP_SERVER=11935` - RTMP media server
-- `PROXY_HTTP_SERVER=18080` - HTTP streaming (HLS, HTTP-FLV)
-- `PROXY_WEBRTC_SERVER=18000` - WebRTC server (UDP)
-- `PROXY_SRT_SERVER=20080` - SRT server (UDP)
-- `PROXY_HTTP_API=11985` - HTTP API (WHIP/WHEP)
-- `PROXY_SYSTEM_API=12025` - System API (origin registration)
-
-### Load Balancer Configuration
-- `PROXY_LOAD_BALANCER_TYPE=memory` - Use "memory" (single proxy) or "redis" (multi-proxy)
-- `PROXY_REDIS_HOST=127.0.0.1`
-- `PROXY_REDIS_PORT=6379`
-- `PROXY_REDIS_PASSWORD=` (empty for no password)
-- `PROXY_REDIS_DB=0`
-
-### Other Settings
-- `PROXY_STATIC_FILES=../srs/trunk/research` - Static web files directory
-- `PROXY_FORCE_QUIT_TIMEOUT=30s` - Force shutdown timeout
-- `PROXY_GRACE_QUIT_TIMEOUT=20s` - Graceful shutdown timeout
-
 ## How to Run
 
 When running the project for testing or development, you should:
@@ -85,3 +53,22 @@ ffprobe http://localhost:8080/live/livestream.flv
 ```
 
 Both commands should successfully detect the stream and display video/audio codec information. If ffprobe shows stream details without errors, the proxy is working correctly.
+
+## Code Conventions
+
+### Factory Functions
+- Factory functions should use explicit interface names: `NewBootstrap()`, `NewMemoryLoadBalancer()`, etc.
+- **Do not** use generic `New()` function names
+- This improves code clarity and makes the constructed type explicit at the call site
+- Example:
+  ```go
+  // Good
+  bs := bootstrap.NewBootstrap()
+
+  // Avoid
+  bs := bootstrap.New()
+  ```
+
+### Global Variables
+- Avoid global variables for service instances
+- This improves testability and makes code flow explicit

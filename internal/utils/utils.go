@@ -21,9 +21,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-	"time"
 
-	"srs-proxy/internal/env"
 	"srs-proxy/internal/errors"
 	"srs-proxy/internal/logger"
 	"srs-proxy/internal/version"
@@ -69,14 +67,6 @@ func ApiCORS(ctx context.Context, w http.ResponseWriter, r *http.Request) bool {
 	}
 
 	return false
-}
-
-func ParseGracefullyQuitTimeout() (time.Duration, error) {
-	if t, err := time.ParseDuration(env.EnvGraceQuitTimeout()); err != nil {
-		return 0, errors.Wrapf(err, "parse duration %v", env.EnvGraceQuitTimeout())
-	} else {
-		return t, nil
-	}
 }
 
 // ParseBody read the body from r, and unmarshal JSON to v.
