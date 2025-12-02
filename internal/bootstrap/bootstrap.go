@@ -7,14 +7,14 @@ import (
 	"context"
 	"time"
 
-	"srs-proxy/internal/debug"
-	"srs-proxy/internal/env"
-	"srs-proxy/internal/errors"
-	"srs-proxy/internal/lb"
-	"srs-proxy/internal/logger"
-	"srs-proxy/internal/protocol"
-	"srs-proxy/internal/signal"
-	"srs-proxy/internal/version"
+	"srsx/internal/debug"
+	"srsx/internal/env"
+	"srsx/internal/errors"
+	"srsx/internal/lb"
+	"srsx/internal/logger"
+	"srsx/internal/protocol"
+	"srsx/internal/signal"
+	"srsx/internal/version"
 )
 
 // Bootstrap defines the interface for application bootstrap operations.

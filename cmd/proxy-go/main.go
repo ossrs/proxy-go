@@ -7,7 +7,7 @@ import (
 	"context"
 	"os"
 
-	"srs-proxy/internal/bootstrap"
+	"srsx/internal/bootstrap"
 )
 
 func main() {

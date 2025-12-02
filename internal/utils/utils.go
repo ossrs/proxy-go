@@ -22,9 +22,9 @@ import (
 	"strings"
 	"syscall"
 
-	"srs-proxy/internal/errors"
-	"srs-proxy/internal/logger"
-	"srs-proxy/internal/version"
+	"srsx/internal/errors"
+	"srsx/internal/logger"
+	"srsx/internal/version"
 )
 
 func ApiResponse(ctx context.Context, w http.ResponseWriter, r *http.Request, data any) {

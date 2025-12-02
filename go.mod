@@ -1,4 +1,4 @@
-module srs-proxy
+module srsx
 
 go 1.18
 

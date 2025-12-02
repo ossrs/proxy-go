@@ -14,7 +14,7 @@ import (
 	"io"
 	"sync"
 
-	"srs-proxy/internal/errors"
+	"srsx/internal/errors"
 )
 
 // The handshake implements the RTMP handshake protocol.

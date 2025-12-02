@@ -8,8 +8,8 @@ import (
 	"os"
 	"time"
 
-	"srs-proxy/internal/env"
-	"srs-proxy/internal/logger"
+	"srsx/internal/env"
+	"srsx/internal/logger"
 )
 
 // NewDefaultSRSForDebugging initialize the default SRS media server, for debugging only.

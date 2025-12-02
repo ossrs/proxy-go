@@ -7,8 +7,8 @@ import (
 	"context"
 	"net/http"
 
-	"srs-proxy/internal/env"
-	"srs-proxy/internal/logger"
+	"srsx/internal/env"
+	"srsx/internal/logger"
 )
 
 func HandleGoPprof(ctx context.Context, environment env.Environment) {

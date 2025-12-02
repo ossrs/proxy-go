@@ -9,10 +9,10 @@ import (
 	"math/rand"
 	"time"
 
-	"srs-proxy/internal/env"
-	"srs-proxy/internal/errors"
-	"srs-proxy/internal/logger"
-	"srs-proxy/internal/sync"
+	"srsx/internal/env"
+	"srsx/internal/errors"
+	"srsx/internal/logger"
+	"srsx/internal/sync"
 )
 
 // MemoryLoadBalancer stores state in memory.

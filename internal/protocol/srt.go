@@ -13,12 +13,12 @@ import (
 	stdSync "sync"
 	"time"
 
-	"srs-proxy/internal/env"
-	"srs-proxy/internal/errors"
-	"srs-proxy/internal/lb"
-	"srs-proxy/internal/logger"
-	"srs-proxy/internal/sync"
-	"srs-proxy/internal/utils"
+	"srsx/internal/env"
+	"srsx/internal/errors"
+	"srsx/internal/lb"
+	"srsx/internal/logger"
+	"srsx/internal/sync"
+	"srsx/internal/utils"
 )
 
 // srsSRTServer is the proxy for SRS server via SRT. It will figure out which backend server to

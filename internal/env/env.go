@@ -9,8 +9,8 @@ import (
 
 	"github.com/joho/godotenv"
 
-	"srs-proxy/internal/errors"
-	"srs-proxy/internal/logger"
+	"srsx/internal/errors"
+	"srsx/internal/logger"
 )
 
 // Environment provides access to environment variables.

@@ -1,11 +1,11 @@
 # Codebase Structure
 
-This document provides an overview of the proxy-go codebase organization.
+This document provides an overview of the Go codebase organization.
 
 ## Directory Structure
 
 ```
-proxy-go/
+/
 ├── cmd/proxy-go/
 │   └── main.go                 # Application entry point
 └── internal/
@@ -45,7 +45,7 @@ Structured logging with context-based request tracing. Provides log levels: Verb
 
 ### protocol
 Protocol server implementations for all supported streaming protocols:
-- `rtmp.go` - RTMP proxy server
+- `rtmp.go` - RTMP protocol stack
 - `http.go` - HTTP streaming (HLS, HTTP-FLV, HTTP-TS)
 - `rtc.go` - WebRTC server (WHIP/WHEP)
 - `srt.go` - SRT server

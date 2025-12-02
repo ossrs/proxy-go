@@ -10,9 +10,9 @@ import (
 	"syscall"
 	"time"
 
-	"srs-proxy/internal/env"
-	"srs-proxy/internal/errors"
-	"srs-proxy/internal/logger"
+	"srsx/internal/env"
+	"srsx/internal/errors"
+	"srsx/internal/logger"
 )
 
 func InstallSignals(ctx context.Context, cancel context.CancelFunc) {

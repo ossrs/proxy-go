@@ -1,6 +1,10 @@
 .idea
-srs-proxy
-.env
-.go-formarted
 .claude
 .vscode
+
+srs-proxy
+.go-formarted
+
+# For AI to ignore these files.
+.env
+docs/ignore-worklog.md

@@ -14,9 +14,9 @@ import (
 	// Use v8 because we use Go 1.16+, while v9 requires Go 1.18+
 	"github.com/go-redis/redis/v8"
 
-	"srs-proxy/internal/env"
-	"srs-proxy/internal/errors"
-	"srs-proxy/internal/logger"
+	"srsx/internal/env"
+	"srsx/internal/errors"
+	"srsx/internal/logger"
 )
 
 // RedisLoadBalancer stores state in Redis.

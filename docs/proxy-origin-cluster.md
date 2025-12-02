@@ -1,4 +1,6 @@
-# Usage
+# Origin Cluster
+
+How to use the proxy server to build an origin cluster for SRS media server.
 
 ## Build
 
@@ -7,8 +9,8 @@ server by below command, and get the executable binary `./srs-proxy`:
 
 ```bash
 cd ~/git &&
-git clone https://github.com/ossrs/proxy-go.git &&
-cd proxy-go && make
+git clone https://github.com/ossrs/srsx.git &&
+cd srsx && make
 ```
 
 > Note: You can also download the dependencies by running `go mod download` before building.
@@ -24,9 +26,9 @@ git clone https://github.com/ossrs/srs.git &&
 cd srs/trunk && ./configure && make
 ```
 
-SRS will automatically register itself to the proxy server, see `Automatic Registration` in [protocol.md](./protocol.md).
+SRS will automatically register itself to the proxy server, see `Automatic Registration` in [proxy-protocol.md](./proxy-protocol.md).
 
-You can use any other RTMP server as the backend origin server, but you need to register the backend server manually, see `Manual Registration API` in [protocol.md](./protocol.md).
+You can use any other RTMP server as the backend origin server, but you need to register the backend server manually, see `Manual Registration API` in [proxy-protocol.md](./proxy-protocol.md).
 
 ## Legacy
 

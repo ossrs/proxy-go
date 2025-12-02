@@ -1,24 +1,13 @@
-# proxy-go Project Guidelines
-
-## Project Summary
-
-proxy-go is a stateless media streaming proxy with built-in load balancing for building scalable origin clusters. It supports RTMP, SRT, WebRTC (WHIP/WHEP), HLS, and HTTP-FLV protocols.
-
-Key characteristics:
-- Stateless design enables horizontal scaling
-- Built-in load balancer (memory or Redis-based)
-- Protocol handlers for RTMP, WebRTC, SRT, HTTP streaming
-- Backend origin servers register via System API
-- Official solution for SRS Origin Cluster
-
-## How to Run
+# How to Run and Test the Project
 
 When running the project for testing or development, you should:
 1. Build and start the proxy server
-2. Publish a test stream using FFmpeg
-3. Verify the stream is working using ffprobe
+2. Start SRS origin server
+3. Verify SRS registration with proxy
+4. Publish a test stream using FFmpeg
+5. Verify the stream is working using ffprobe
 
-### Step 1: Build and Start Proxy Server
+## Step 1: Build and Start Proxy Server
 
 ```bash
 make && env PROXY_RTMP_SERVER=1935 PROXY_HTTP_SERVER=8080 \
@@ -28,7 +17,26 @@ make && env PROXY_RTMP_SERVER=1935 PROXY_HTTP_SERVER=8080 \
 
 The proxy server should start and listen on the configured ports.
 
-### Step 2: Publish a Test Stream
+## Step 2: Start SRS Origin Server
+
+In a new terminal, start the SRS origin server. You may need to increase the file descriptor limit and use bash explicitly:
+
+```bash
+ulimit -n 10000 && bash -c "cd ~/git/srs/trunk && ./objs/srs -c conf/origin1-for-proxy.conf"
+```
+
+The SRS origin server should start and be ready to receive and serve streams. Check the console output for startup messages.
+
+## Step 3: Verify SRS Registration
+
+Check the proxy logs to confirm SRS has registered itself with the proxy:
+
+The proxy logs are printed to the console where you started the proxy server. Check the terminal running the proxy for messages indicating:
+- "Register SRS media server" messages when SRS registers itself with the proxy
+
+The SRS origin server should automatically register itself with the proxy when it starts. Look for successful registration messages in proxy console outputs.
+
+## Step 4: Publish a Test Stream
 
 In a new terminal, publish a test stream using FFmpeg:
 
@@ -38,7 +46,7 @@ ffmpeg -stream_loop -1 -re -i ~/git/srs/trunk/doc/source.flv -c copy -f flv rtmp
 
 > Note: `-stream_loop -1` makes FFmpeg loop the input file infinitely, ensuring the stream doesn't quit after the file ends.
 
-### Step 3: Verify Stream with ffprobe
+## Step 5: Verify Stream with ffprobe
 
 In another terminal, use ffprobe to verify the stream is working:
 
@@ -56,7 +64,7 @@ Both commands should successfully detect the stream and display video/audio code
 
 ## Code Conventions
 
-### Factory Functions
+## Factory Functions
 - Factory functions should use explicit interface names: `NewBootstrap()`, `NewMemoryLoadBalancer()`, etc.
 - **Do not** use generic `New()` function names
 - This improves code clarity and makes the constructed type explicit at the call site
@@ -69,6 +77,6 @@ Both commands should successfully detect the stream and display video/audio code
   bs := bootstrap.New()
   ```
 
-### Global Variables
+## Global Variables
 - Avoid global variables for service instances
 - This improves testability and makes code flow explicit

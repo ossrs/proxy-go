@@ -11,13 +11,13 @@ import (
 	"strings"
 	"sync"
 
-	"srs-proxy/internal/env"
-	"srs-proxy/internal/errors"
-	"srs-proxy/internal/lb"
-	"srs-proxy/internal/logger"
-	"srs-proxy/internal/rtmp"
-	"srs-proxy/internal/utils"
-	"srs-proxy/internal/version"
+	"srsx/internal/env"
+	"srsx/internal/errors"
+	"srsx/internal/lb"
+	"srsx/internal/logger"
+	"srsx/internal/rtmp"
+	"srsx/internal/utils"
+	"srsx/internal/version"
 )
 
 // srsRTMPServer is the proxy for SRS RTMP server, to proxy the RTMP stream to backend SRS

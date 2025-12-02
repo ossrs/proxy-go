@@ -12,12 +12,12 @@ import (
 	"sync"
 	"time"
 
-	"srs-proxy/internal/env"
-	"srs-proxy/internal/errors"
-	"srs-proxy/internal/lb"
-	"srs-proxy/internal/logger"
-	"srs-proxy/internal/utils"
-	"srs-proxy/internal/version"
+	"srsx/internal/env"
+	"srsx/internal/errors"
+	"srsx/internal/lb"
+	"srsx/internal/logger"
+	"srsx/internal/utils"
+	"srsx/internal/version"
 )
 
 // srsHTTPAPIServer is the proxy for SRS HTTP API, to proxy the WebRTC HTTP API like WHIP and WHEP,
