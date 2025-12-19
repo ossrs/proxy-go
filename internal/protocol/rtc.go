@@ -161,7 +161,7 @@ func (v *srsWebRTCServer) proxyApiToBackend(
 	if err != nil {
 		return errors.Wrapf(err, "create request to %v", backendURL)
 	}
-
+    req.Host = r.Host
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return errors.Errorf("do request to %v EOF", backendURL)
